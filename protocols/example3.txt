@@ -1,0 +1,204 @@
+polymers: H, H', X, Y, T_Y, tau, tau', T_tau, T_tau', temp, tc, copy
+
+main:
+1:  create-polymer(H)
+2:  add-to(X,H)
+3:  create-distributed-counter(Y)
+4:  add-thread-polymer(Y,1)
+5:  add-to(X,Y)
+6:  halve(H,H')
+7:  jump-if-empty(H, 10)
+8:      double(Y)
+9:      goto(6)
+
+function: add-to(sigma, sigma')
+i:  goto(i.1)
+i.1:create-polymer(copy)
+i.2:jump-if-empty(sigma, i.7)
+i.3:    dec(sigma)
+i.4:    inc(sigma')
+i.5:    inc(copy)
+i.6:    goto(i.2)
+i.7:jump-if-empty(copy, i.11)
+i.8:   dec(copy)
+i.9:   inc(sigma)
+i.10:  goto(i.7)
+i.11:destroy-polymer(copy) 
+i.12:goto(i+1)
+
+function: flush(sigma)
+i:    goto(i.1)
+i.1:    jump-if-empty(sigma, i+1)
+i.2:    dec(sigma)
+i.3:    goto(i.1)
+
+function: halve(sigma, sigma')
+i:  goto(i.1)
+i.1:create-polymer(sigma')
+i.2:add-to(sigma, sigma')
+i.3:jump-if-empty(sigma',i.9)
+i.4:    dec(sigma')
+i.5:    dec(sigma)
+i.6:    jump-if-empty(sigma',i.9)
+i.7:        dec(sigma')
+i.8:    goto(i.3)
+i.9:destroy-polymer(sigma')
+i.10:goto(i+1)
+
+function: double(sigma)
+i:  goto(i.1)
+i.1:create-distributed-counter(tau)
+i.2:create-distributed-counter(tau')
+i.3:add-thread-polymers(tau, T_sigma)
+i.4:add-thread-polymers(tau', T_sigma)
+i.5:transfer1(sigma,tau,tau')
+i.6:add-thread-polymers(sigma, T_tau)
+i.7:add-thread-polymers(sigma, T_tau')
+i.8:transfer2(tau, sigma)
+i.9:transfer2(tau', sigma)
+i.10:destroy-distributed-counter(tau)
+i.11:destroy-distributed-counter(tau')
+i.12:goto(i+1)
+
+function: create-distributed-counter(sigma)
+i:  goto(i.1)
+i.1:create-polymer(T_sigma)
+i.2:goto(i+1)
+
+function: destroy-distributed-counter(sigma)
+i:  goto(i.1)
+i.1:destroy-polymer(T_sigma)
+i.2:goto(i+1)
+
+function: add-thread-polymers(sigma,T)
+i:  goto(i.1)
+i.1:create-polymer(temp)
+i.2:add-to(T,temp)
+i.3:jump-if-empty(temp,i.8)
+i.4:    dec(temp)
+i.5:    create-polymer(sigma)
+i.6:    inc(T_sigma)
+i.7:    goto(i.3)
+i.8:destroy-polymer(temp)
+i.9:goto(i+1)
+
+function: add-thread-polymer(sigma,1)
+i:   goto(i.1)
+i.1:create-polymer(sigma)
+i.2:inc(T_sigma)
+i.3:goto(i+1)
+
+function: transfer1(sigma,tau,tau')
+i:  goto(i.1)
+i.1:create-polymer(tc)
+i.2:create-threads(T_sigma, L_t)
+i.3:add-to(T_sigma, tc)
+i.4:loop-until-empty(tc, i.5)
+i.4:   thread-transfer1(sigma, tau, tau', tc)
+i.5:destroy-threads(T_sigma, L_i.4.6)
+i.6:destroy-polymer(tc)
+i.7:goto(i+1)
+
+function: transfer2(sigma,tau)
+i:  goto(i.1)
+i.1:create-polymer(tc)
+i.2:create-threads(T_sigma, L_t)
+i.3:add-to(T_sigma, tc)
+i.4:loop-until-empty(tc, i.5)
+i.4:   thread-transfer2(sigma, tau, tc)
+i.5:destroy-threads(T_sigma, L_i.4.5)
+i.6:destroy-polymer(tc)
+i.7:goto(i+1)
+
+function: thread-transfer1(sigma, tau, tau', tc)
+i:  threadon()
+i.1:dec-until-destroy(sigma,i.5)
+i.2:    inc(tau)
+i.3:    inc(tau')
+i.4:    goto(i.1)
+i.5:dec(tc)
+
+function: thread-transfer2(sigma, tau, tc)
+i:  threadon()
+i.1:dec-until-destroy(sigma,i.4)
+i.2:    inc(tau)
+i.3:    goto(i.1)
+i.4:dec(tc)
+
+function: create-threads(T_sigma, L_t)
+i:  goto(i.1)
+i.1:create-polymer(temp)
+i.2:add-to(T_sigma, temp)
+i.3:jump-if-empty(temp, i.7)
+i.4:    dec(temp)
+i.5:    create(L_t)
+i.6:    goto(i.3)
+i.7:destroy-polymer(temp)
+i.8:goto(i+1)
+
+function: destroy-threads(T_sigma, L_t)
+i:  goto(i.1)
+i.1:create-polymer(temp)
+i.2:add-to(T_sigma, temp)
+i.3:jump-if-empty(temp, i.7)
+i.4:    dec(temp)
+i.5:    destroy(L_t)
+i.6:    goto(i.3)
+i.7:destroy-polymer(temp)
+i.8:goto(i+1)
+
+function: release-output(sigma)
+i:  goto(curr_i)
+i.1:jump-if-empty(sigma, i+1)
+i.2:    dec(sigma)
+i.3:    inc(Y')
+i.4:    create(Y')
+i.5:    goto(1)
+
+function: destroy-output()
+i:  goto(i.1)
+i.1:jump-if-empty(Y',i.5)
+i.2:    dec(Y')
+i.3:    destroy(Y)
+i.4:    goto(1)
+i.5:    goto(i+1)
+
+instruction: inc(sigma)
+    L_{i} + B -> L_{i}* + {sigma}
+    L_{i}* + A_{sigma} -> L_{i+1} + I_{sigma}
+
+instruction: dec(sigma)
+    L_{i} + I_{sigma} -> L_{i}* + A_{sigma}
+    L_{i}* + {sigma} -> L_{i+1} + B
+
+instruction: jump-if-empty(sigma, k)
+    L_{i} + bot_{sigma} -> L_{k} + bot_{sigma}
+    L_{i} + I_{sigma} -> L_{i+1} + I_{sigma}
+
+instruction: goto(k)
+    L_{i} + B -> L_{k} + B
+
+instruction: create(sigma)
+    L_{i} + B -> L_{i+1} + {sigma}
+
+instruction: destroy(sigma)
+    L_{i} + {sigma} -> L_{i+1} + B
+
+instruction: create-polymer(sigma)
+    L_{i} + B -> L_{i+1} + bot_{sigma}
+
+instruction: destroy-polymer(sigma)
+    L_{i} + bot_{sigma} -> L_{i+1} + B
+
+instruction: dec-until-destroy(sigma,k)
+    L_{i} + I_{sigma} -> A_{sigma} + L_{i}*
+    L_{i}* + {sigma} -> L_{i+1} + B
+    L_{i} + bot_{sigma} -> L_{i}** + B
+    L_{i}** + I_T_{sigma} -> L_{i}*** + A_T_{sigma}
+    L_{i}*** + T_{sigma} -> L_{k} + B
+
+instruction: loop-until-empty(sigma,k)
+    L_{i} + bot_{sigma} -> L_{k} + bot_{sigma}
+
+instruction: threadon()
+    L_{i} + L_t -> L_{i} + L_{i}.1

@@ -1,0 +1,72 @@
+polymers: X, X', X'', Y_int, Y', copy
+
+main:
+1:  add-to(X,X')
+2:  add-to(X',X'')
+3:  jump-if-empty(X', 7)
+4:      dec(X')
+5:      add-to(X'', Y_int)
+6:      goto(3)
+
+restart:
+R.0: destroy-output()
+R.1: flush(X')
+R.2: flush(X'')
+R.3: flush(Y_int)
+R.4: goto(1)
+
+function: add-to(sigma, sigma')
+i:  goto(i.1)
+i.1:jump-if-empty(sigma, i.6)
+i.2:    dec(sigma)
+i.3:    inc(sigma')
+i.4:    inc(copy)
+i.5:    goto(i.1)
+i.6:jump-if-empty(copy, i.10)
+i.7:    dec(copy)
+i.8:    inc(sigma)
+i.9:    goto(i.6)
+i.10:goto(i+1)
+
+function: flush(sigma)
+i:  goto(i.1)
+i.1:jump-if-empty(sigma, i+1)
+i.2:    dec(sigma)
+i.3:    goto(i.1)
+
+function: release-output(sigma)
+i:  goto(i.1)
+i.1:jump-if-empty(sigma, i+1)
+i.2:    dec(sigma)
+i.3:    inc(Y')
+i.4:    create(Y)
+i.5:    goto(i.1)
+
+function: destroy-output()
+i:  goto(i.1)
+i.1:jump-if-empty(Y', i.5)
+i.2:    dec(Y')
+i.3:    destroy(Y)
+i.4:    goto(i.1)
+i.5:goto(i+1)
+
+instruction: inc(sigma)
+    L_{i} + B -> L_{i}* + {sigma}
+    L_{i}* + A_{sigma} -> L_{i+1} + I_{sigma}
+
+instruction: dec(sigma)
+    L_{i} + I_{sigma} -> L_{i}* + A_{sigma} 
+    L_{i}* + {sigma} -> L_{i+1} + B
+
+instruction: jump-if-empty(sigma, k)
+    L_{i} + bot_{sigma} -> L_{k} + bot_{sigma}
+    L_{i} + I_{sigma} -> L_{i+1} + I_{sigma}
+
+instruction: goto(k)
+    L_{i} + B -> L_{k} + B
+
+instruction: create(sigma)
+    L_{i} + B -> L_{i+1} + {sigma}
+
+instruction: destroy(sigma)
+    L_{i} + {sigma} -> L_{i+1} + B
