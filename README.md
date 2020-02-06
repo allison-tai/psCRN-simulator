@@ -62,7 +62,7 @@ Then of course, we can use these functions and instructions together to build a 
 # The application
 Our application consists of two components, 1) a simple compiler and 2) the simulator proper.
 
-The compiler is optional; its function is to convert a high-level psCRN program containing written functions and instructions, into the low-level set of reactions that constitute the psCRN protocol. To this end, for it to be recognized by the compiler, the psCRN program must contain three sections:
+The compiler is optional; it converts a high-level psCRN program containing written functions and instructions, into a low-level set of reactions that constitute the psCRN protocol. To this end, for it to be recognized by the compiler, the psCRN program must contain three sections:
 
 1. the label "polymers:", followed by a list of polymer species, separated by commas.
 2. the set of high-level functions the program requires. The main program itself should be listed as a function, and labeled "main:". If input-detection is desired, add a function labeled "restart:". Other functions should be labeled with "function: func_name", where "func_name" is how that function is called in the program. All lines of the function body should be numbered as described in the paper. Use *i* for non-restart functions; restart functions should be labeled with *r* instead.
