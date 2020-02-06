@@ -1,15 +1,15 @@
+import sys, os, configparser, ast, copy
 from pqdict import PQDict
 import numpy as np
 from numpy import array, zeros, log, seterr
 from numpy.random import rand, randint
-from scipy.optimize import curve_fit
 from collections import Counter
 from datetime import datetime
-import matplotlib
-matplotlib.use('Agg')
-from matplotlib import pyplot as plt
 
-# generation code
+# initialize global variables
+species_list = []
+poly_dict = {}
+
 class Reaction(object):
     def __init__(self, count, r_idx, p_idx, pl_idx, rxn_cat):
         self.count = count
@@ -43,9 +43,8 @@ def insert_sp(sp): # returns the index
         return len(species_list) - 1
 
 def insert_pl(sp_idx): # returns the index
-    pl_idx = poly_dict.get(sp_idx, len(c_poly))
-    if (pl_idx == len(c_poly)):
-        c_poly.append([])
+    pl_idx = poly_dict.get(sp_idx, len(poly_dict))
+    if (pl_idx == len(poly_dict)):
         poly_dict[sp_idx] = pl_idx
     return pl_idx
 
@@ -90,7 +89,7 @@ def new_reaction(reactants_str, products_str):
     for sp in set(reactants + products):
         sp_idx = insert_sp(sp)
         if ('bot' in sp): #polymer reaction
-            pl_idx = insert_pl(sp_idx) # as of now only one polymer possible
+            pl_idx = insert_pl(sp_idx) # as of now only one polymer per reaction possible
         if sp in reactants:
             r_idx.append(sp_idx)
         if sp in products:
@@ -110,7 +109,6 @@ def extract_rxns(file):
 
     return reactions
 
-# runtime code
 def get_dependencies(reactions):
     dependencies = {}
     for rxn in reactions:
@@ -120,11 +118,11 @@ def get_dependencies(reactions):
         # get indices of the reactants/products
         agents = set(species_list[i] for i in agent_idx)
         for rxn2 in reactions:
+            # only need indices of reactants for second reaction
             agents2 = set(species_list[i] for i in rxn2.r_idx)
-            #if bool(agent_idx & set(rxn2.r_idx)):
-            #l_agent = i for i in agents2 if i.startswith('L_') and not i.startswith('L_t')
-            #if (l_agent == [] and bool(agents & agents2)) or (l_agent != [] and l_agent[0] in agents):
+            # small hack: if following our compiler, reactions that only share blanks are never dependent
             if bool(agents & agents2) and agents2 & agents != set('B'):
+            # if bool(agents & agents2) # safer version
                 dep_list.append(rxn2)
         # add key-value pair (reaction and its dependent reactions) to dictionary
         dependencies[rxn] = dep_list
@@ -136,7 +134,7 @@ def compute_volume(c_0, c_poly):
         pl_total = pl_total + sum(pl)
     return sum(c_0) + pl_total
 
-def pl_cases(rxn, c_poly, react): #processes effects of polymer lists of polymer reactions
+def pl_cases(rxn, react, c_poly): #processes effects of polymer lists of polymer reactions
     if (rxn.rxn_cat <= 4):
     # pick a polymer
         cpl_idx = randint(0, len(c_poly[rxn.pl_idx]))
@@ -160,7 +158,7 @@ def pl_cases(rxn, c_poly, react): #processes effects of polymer lists of polymer
         # destroy reaction
         elif (rxn.rxn_cat == 4):
             if c_poly[rxn.pl_idx][cpl_idx] == 0:
-                # kill our current stack
+                # kill our current polymer
                 c_poly[rxn.pl_idx].pop(cpl_idx)
             # else do nothing
             else:
@@ -170,21 +168,17 @@ def pl_cases(rxn, c_poly, react): #processes effects of polymer lists of polymer
         c_poly[rxn.pl_idx].append(0)
     return react
 
-    # figures out what type of reaction is next and fires it
-def fire_rxn(rnext, c, c_poly, t, C, T):
+    # find type of next reaction and fires it
+def fire_rxn(rnext, c, t, c_poly, C, T):
     # polymer reaction
     react = 1
     if (rnext.rxn_cat > 0):
         # process
-        react = pl_cases(rnext, c_poly, react)        
+        react = pl_cases(rnext, react, c_poly)        
     if (react):
         c += rnext.stoich()
         T.append(t)
         C.append(c.copy())
-        #print(species_list[rnext.r_idx[0]] + " + " + species_list[rnext.r_idx[1]] + '->' + \
-        #species_list[rnext.p_idx[0]] + " + " + species_list[rnext.p_idx[1]])
-        #print(c_poly)
-        #print(c[species_list.index('A_X')], c[species_list.index('I_X')])
     return C, T
 
 def gillespie_nrm(tspan, c_0, c_poly, reactions, dep_graph):
@@ -205,7 +199,7 @@ def gillespie_nrm(tspan, c_0, c_poly, reactions, dep_graph):
     # first event
     rnext, tnext = scheduler.topitem()
     t = tnext
-    C, T = fire_rxn(rnext, c, c_poly, t, C, T)
+    C, T = fire_rxn(rnext, c, t, c_poly, C, T)
 
     while t < tspan[1]:
         # reschedule dependent reactions
@@ -217,75 +211,117 @@ def gillespie_nrm(tspan, c_0, c_poly, reactions, dep_graph):
         rnext, tnext = scheduler.topitem()
         t = tnext
         if (rnext.propensity(c, volume) > 0):
-            C, T = fire_rxn(rnext, c, c_poly, t, C, T)
+            C, T = fire_rxn(rnext, c, t, c_poly, C, T)
         else:
             print(c_poly)
     return array(T), array(C)
 
-species_list = []
-poly_dict = {}
-c_poly = []
-reactions = extract_rxns('example_rxns.txt')
-dep_graph = get_dependencies(reactions)
+# initialize a polymer species
+def poly_init(c, c_poly, sp_idx, poly_list, poly_count):    
+    c_poly[poly_dict.get(sp_idx)] = poly_list
+    c[sp_idx] = poly_count
 
-n = 100
-c_dict = {
-    'bot_X': [n],
-    'bot_X\'': [0],
-    'bot_X\'\'': [0],
-    'bot_Y_int': [0],    
-    'bot_Y\'': [0],
-    'bot_copy': [0],    
-    #'X': n,
-    'I_X': n,
-    'B': n*n*3 + 40,
-    'L_1': 1
-}
-c = np.zeros(len(species_list), dtype=int)
-tspan = (0, 1.4e10)
+def main(argv):
+    os.chdir(os.path.dirname(argv[0]) or '.')
+    os.chdir('..')
+    print(os.getcwd())
 
-I_Y_idx = insert_sp('I_Y_int')
-Y_idx = insert_sp('Y')
+    config = configparser.ConfigParser()
+    config.read('run.ini')
+    run_num = config.getint('setup', 'run_num')
+    c_dict = ast.literal_eval(config.get('setup', 'init_config'))
+    lead_poly = config.getboolean('setup', 'lead_polymers')
+    tspan = (0, config.getfloat('setup', 'tmax'))
 
-for sp in c_dict:
-    sp_idx = insert_sp(sp)
-    if 'bot' in sp:
-        c_poly[poly_dict.get(sp_idx)].extend(c_dict.get(sp))
-        c[sp_idx] = len(c_dict.get(sp))
+    reactions = extract_rxns('data/' + argv[1])
+    dep_graph = get_dependencies(reactions)
+
+    # create blank configuration
+    c = np.zeros(len(species_list), dtype=int)
+    c_poly = [[] for p in poly_dict]
+
+    # initialize the polymers for blank configuration
+    for sp in species_list:
+        sp_idx = insert_sp(sp)
+        if 'bot' in sp:
+            if lead_poly is True:
+                poly_init(c, c_poly, sp_idx, [0], 1)
+            else:
+                poly_init(c, c_poly, sp_idx, [], 0)
+
+    # which agents to track and record
+    track = config.get('setup', 'track').split(',')
+    if len(track) > 1:
+        t_idxs = [insert_sp(t.strip()) for t in track]
     else:
-        c[sp_idx] = c_dict.get(sp)
+        t_idxs = insert_sp(track[0])
+    
+    fmt = config.get('output', 'format')
+    output = config.get('output', 'folder')
+    if not os.path.exists(output):
+        os.makedirs(output)
+    o_name = output + '/' + argv[2]
 
-startTime = datetime.now()
+    # run protocol
+    if run_num == 1:
+        for sp in c_dict:
+            sp_idx = insert_sp(sp)
+            if 'bot' in sp:
+                poly_init(c, c_poly, sp_idx, c_dict.get(sp), len(c_dict.get(sp)))
+            else:
+                c[sp_idx] = c_dict.get(sp)
+        
+        # blanks, remove later
+        n = c[insert_sp('I_X')]
+        c[insert_sp('B')] = n*n*3 + 40
 
-T, C = gillespie_nrm(tspan, c, c_poly, reactions, dep_graph)
+        startTime = datetime.now()
+        T, C = gillespie_nrm(tspan, c, c_poly, reactions, dep_graph)
+        print('\nTime elasped: ', datetime.now() - startTime)
+        counts = C[:, t_idxs]
+        time = T
 
-print('\nTime elasped: ', datetime.now() - startTime)
+    else:
+        counts = []
+        time = []
+        n_i = 0
+        ci = c.copy() # back-up initial config
+        ci_poly = copy.deepcopy(c_poly) # back-up initial polymers
+        while n_i < run_num:
+            for sp in c_dict:
+                sp_idx = insert_sp(sp)
+                if isinstance(c_dict.get(sp), list):
+                    if 'bot' in sp:
+                        poly_init(ci, ci_poly, sp_idx, c_dict.get(sp)[n_i], len(c_dict.get(sp)[n_i]))
+                    else:
+                        ci[sp_idx] = c_dict.get(sp)[n_i]
 
-#np.save('rseq-pl-counts-100.npy', C[:,I_Y_idx])
-#np.save('rseq-sol-counts-100.npy', C[:,Y_idx])
-#np.save('rseq-intrt-100.npy', T)
+                    # blanks, remove later
+                    if sp == 'I_X':
+                        n = ci[insert_sp('I_X')]
+                        ci[insert_sp('B')] = n*n*3 + 40
 
-#C0 = np.load('seq-pl-counts-100.npy')
-#C1 = np.load('rseq-sol-counts-100.npy')
-#T0 = np.load('seq-intrt-100.npy')
+                else:
+                    if 'bot' in sp:
+                        poly_init(ci, ci_poly, sp_idx, c_dict.get(sp), len(c_dict.get(sp)))
+                    else:
+                        ci[sp_idx] = c_dict.get(sp)
 
-C1 = np.load('counts-squaret-100.npy')
-T1 = np.load('intrt-squaret-100.npy')
+            startTime = datetime.now()
+            T, C = gillespie_nrm(tspan, ci, ci_poly, reactions, dep_graph)
+            print('\nTime elasped: ', datetime.now() - startTime)
 
-#C1 = np.load('counts-threaded-128.npy')
-#T1 = np.load('intrt-threaded-128.npy')
+            counts.append(C[-1, t_idxs])
+            time.append(T[-1])
 
-#C1 = np.load('seq-counts.npy')
-#T1 = np.load('seq-intrt.npy')
+            ci = c.copy() #restore configuration
+            ci_poly = copy.deepcopy(c_poly)
 
+            n_i = n_i + 1
+    
+    if fmt == 'np' or 'numpy':
+        np.save(o_name + '_counts.npy', counts)
+        np.save(o_name + '_time.npy', time)        
 
-plt.plot(T1, C1, '-b', label = 'threaded')
-plt.plot(T, C[:,I_Y_idx], '-r', label = 'sequential') 
-plt.plot([T1[-1], T[-1]], [C1[-1], C[-1,I_Y_idx]], '-b')
-
-plt.xlabel('number of interactions')
-plt.ylabel('output count (molecules)')    
-plt.legend(frameon = True, loc = 'lower right')
-
-#plt.savefig('rseq-{}' .format(n))
-plt.savefig('seq-squaret-100')
+if __name__ == '__main__':
+    main(sys.argv)
