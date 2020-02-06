@@ -76,4 +76,4 @@ To run the simulator, in the command line, run:
 
  ```python src/run.py input_file output_name```
  
- Where the input is simply a file containing the set of reactions of the format "A + B -> C + D", separated line by line. The compiler always generates a valid input for the simulator. Output name determines how the data from the simulation will be saved. The simulator can be customized through the run.ini file in the main directory.
+ Where the input is simply a file containing the set of reactions in the format "A + B -> C + D", separated line by line. The compiler always generates a valid input for the simulator. Output name determines how the data from the simulation will be saved. The simulator can be customized through the run.ini file in the main directory.
