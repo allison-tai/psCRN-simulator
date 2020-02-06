@@ -56,6 +56,7 @@ Then of course, we can use these functions and instructions together to build a 
   4: dec(X')
   5: add-to(X'', Y_int)
   6: goto(3)
+  7: halt
   ```
 
 # The application
