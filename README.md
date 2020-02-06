@@ -56,15 +56,16 @@ Then of course, we can use these functions and instructions together to build a 
   4: dec(X')
   5: add-to(X'', Y_int)
   6: goto(3)
+  7: halt
   ```
 
 # The application
 Our application consists of two components, 1) a simple compiler and 2) the simulator proper.
 
-The compiler is optional; its function is to convert a high-level psCRN program containing written functions and instructions, into the low-level set of reactions that constitute the psCRN protocol. To this end, for it to be recognized by the compiler, the psCRN program must contain three sections:
+The compiler is optional; it converts a high-level psCRN program containing written functions and instructions, into a low-level set of reactions that constitute the psCRN protocol. To this end, for it to be recognized by the compiler, the psCRN program must contain three sections:
 
 1. the label "polymers:", followed by a list of polymer species, separated by commas.
-2. the set of high-level functions the program requires. The main program itself should be listed as a function, and labeled "main:". If input-detection is desired, add a function labeled "restart:". Other functions should be labeled with "function: func_name", where "func_name" is how that function is called in the program. All lines of the function body should be numbered as described in the paper. Use *i* for non-restart functions; restart functions should be labeled with *r* instead.
+2. the set of high-level functions the program requires. The main program itself should be listed as a function, and labeled "main:". If input-detection is desired, add a function labeled "restart:". Other functions should be labeled with "function: func_name", where "func_name" is how that function is called in the program. All lines of the function body should be numbered as described in the paper. Use *i* for all non-restart functions; the restart function should be labeled with *R* instead.
 3. the set of low-level instructions the program requires. Each should be labeled with "instruction: instr_name", where "inst_name" is how that instruction is called within the program. The lines after should be the set of reactions corresponding to that instruction, where each reaction takes up a separate line and follows the format "A + B -> C + D." If the instruction contains variables, enclose the variable component with braces.
 
 The data folder contains more concrete working examples.
@@ -76,4 +77,4 @@ To run the simulator, in the command line, run:
 
  ```python src/run.py input_file output_name```
  
- Where the input is simply a file containing the set of reactions of the format "A + B -> C + D", separated line by line. The compiler always generates a valid input for the simulator. Output name determines how the data from the simulation will be saved. The simulator can be customized through the run.ini file in the main directory.
+ Where the input is simply a file containing the set of reactions in the format "A + B -> C + D", separated line by line. The compiler always generates a valid input for the simulator. Output name determines how the data from the simulation will be saved. The simulator can be customized through the run.ini file in the main directory.
